@@ -111,6 +111,7 @@ delete_old() {
   PRUNEABLES=`$PRUNEABLES_CMD $PATTERN`
   if  test "$?" -eq "0" ; then
     message "pruning older files based on $PATTERN"
+
     BU_TO_KEEP=$BU_TO_KEEP_${!2}
     message "keeping last $BU_TO_KEEP backups"
     #
@@ -207,7 +208,7 @@ FILENAME=$FILEPART-$STAMP.sql
 FILEPATH=$BU_DIR/$FILENAME
 #
 # delete stale backups
-delete_old $FILEPART
+delete_old $FILEPART $TASK
 #
 message "backing up all the databases into $FILEPATH"
 # dump the data into the file
