@@ -1,0 +1,229 @@
+#!/bin/bash
+#
+# This script dumps the PostgreSQL db in a Docker container
+# managed by Docker Compose using the selected command within
+# the database container and pipes the results into an
+# appropriately named/dated file...
+#
+# It also manages rolling out older backups to avoid filling
+# your storage...
+#
+# Default retention
+BU_TO_KEEP_HOURLY=24
+BU_TO_KEEP_DAILY=7
+BU_TO_KEEP_WEEKLY=4
+BU_TO_KEEP_MONTHLY=12
+BU_TO_KEEP_YEARLY=7
+#
+BU_FROOT=alldbs
+BU_FROOT_HOURLY=hourly
+BU_FROOT_DAILY=daily
+BU_FROOT_WEEKLY=weekly
+BU_FROOT_MONTHLY=monthly
+BU_FROOT_YEARLY=yearly
+#
+# this can be overridden at invocation
+BU_CONF=default-docker-compose.conf
+# # output for debugging...
+VERBOSE=1
+#
+# Stuff that should be universal for this install...
+# where we can find this app...
+MAIN_DIR=/etc/dbbackup
+# determine today's date
+DATE=`date   '+%Y-%m-%d-%a'`
+# determine today's date
+TIME=`date   '+%H-%M-%S'`
+# temporary holding point for email
+TMP_EMAIL=/tmp/tmp_dbbackup_email.$DATE_$TIME
+# log file
+LOG=/var/log/dbbackup.log
+#
+# Commands
+# gzip command
+GZIP=`which gzip`
+# grep command
+GREP=`which grep`
+# email program
+MAIL=`which mail`
+# database dump utility
+DC=`which docker-compose`
+#DEF_ARGS="-C -d -O -x"
+#
+# pattern for "ls" command to build list of
+# pruneable backup files...
+# -1t = 1 column, ordered by time of last mod
+PRUNEABLES_CMD="ls -1t"
+# function to direct a message...
+message() {
+  #
+  # a timestamp for logging purposes
+  TIMESTAMP=`date  '+%Y-%m-%d %H:%M.%S'`
+  echo "$0: $TIMESTAMP $@" >> $LOG
+  if test -f $TMP_EMAIL ; then
+    echo "$0: $TIMESTAMP $@" >> $TMP_EMAIL
+  fi
+  verbose "$TIMESTAMP $@"
+}
+# create the temporary email file
+create_tmp_email() {
+  touch $TMP_EMAIL
+  if test -f $TMP_EMAIL ; then
+    message "created temporary email  $TMP_EMAIL"
+  else
+    message "failed to create temporary email  $TMP_EMAIL"
+  fi
+}
+# send the contents of the temporary file to the
+# designated report recipient
+send_email_report() {
+  if test -f $TMP_EMAIL ; then
+    message "sending email report to $EMAIL"
+    $MAIL -s "$EMAIL_SUBJ" $EMAIL < $TMP_EMAIL
+    rm $TMP_EMAIL
+    if test -f $TMP_EMAIL ; then
+      message "failed to remove temporary email  $TMP_EMAIL"
+    else
+      message "successfully removed temporary email  $TMP_EMAIL"
+    fi
+    message "email report successfully sent"
+  fi
+}
+# insert a blank line into the log and on the console
+insert_blank() {
+  echo "" >> $LOG
+  verbose ""
+}
+# function to direct a message...
+verbose() {
+  if test $VERBOSE = 1 ; then
+    echo "$@"
+  fi
+}
+#
+# delete old backups
+delete_old() {
+  #
+  if test -n $BU_FROOT && test -n $BU_TO_KEEP ; then
+    # pattern to search for to build the list...
+    PATTERN="$BU_DIR/$BU_FROOT-*.*"
+    # build the list, with the suffix...
+    PRUNEABLES=`$PRUNEABLES_CMD $PATTERN`
+    if  test "$?" -eq "0" ; then
+      message "pruning older files based on $PATTERN.$BU_SUFFIX"
+      message "keeping last $BU_TO_KEEP backups"
+      #
+      # set counter
+      NUM=0
+      # go through the list of files and remove those we don't want
+      for PRUNEABLE in $PRUNEABLES
+      do
+        NUM=$(($NUM + 1))
+        if test $NUM -gt $BU_TO_KEEP ; then
+          message "deleting $PRUNEABLE"
+          rm $PRUNEABLE 2>&1 > /dev/null
+        else
+          message "keeping $PRUNEABLE"
+        fi
+      done
+    fi
+  else
+    message "keeping older backups, missing backup_root_filename..."
+  fi
+}
+#
+#
+do_backup() {
+   FILE=$1
+   VER=`$DC exec $DC_CONTAINER pg_config --version`
+   verbose "Postgres version $VER - echoing to backup: $FILE"
+   echo "--" > $FILE
+   echo "-- PostgreSQL Version: $VER" >> $FILE
+   echo "--" >> $FILE
+   echo "" >> $FILE
+   CMD="$DC exec $DC_CONTAINER $DUMP_CMD"
+   verbose "doing database dump: $CMD"
+   $CMD >> $FILE
+}
+
+#
+# cycle through the command line options
+while test $# -ne 0 ; do
+  case $1 in
+    --config|-c)
+      shift # shift from the flag to the value
+      verbose "setting configuration directory to $1"
+      BU_CONF=$1
+    ;;
+    --hourly|-h)
+      verbose "running hourly backup"
+      TASK=HOURLY
+    ;;
+    --daily|-d)
+      verbose "running daily backup"
+      TASK=DAILY
+    ;;
+    --weekly|-w)
+      verbose "running weekly backup"
+      TASK=WEEKLY
+    ;;
+    --monthly|-m)
+      verbose "running monthly backup"
+      TASK=MONTHLY
+    ;;
+    --yearly|-y)
+      verbose "running yearly backup"
+      TASK=YEARLY
+    ;;
+  esac
+  shift
+done
+#
+#
+# create the blank email report
+#create_tmp_email
+#
+if test -f $BU_CONF ; then
+    verbose "Reading default in $BU_CONF"
+    source $BU_CONF
+else
+    error "Couldn't find or read $BU_CONF"
+    exit 1
+fi
+#
+# run through the various tasks
+verbose "using configuration file $BU_CONF"
+# go to the Docker Compose directory where we need to be to run the
+# docker-compose commands
+verbose "going to $DC_DIR"
+OLD_DIR=`pwd`
+cd $DC_DIR
+#
+# run the backup...
+#
+# a timestamp for logging purposes
+STAMP=`date  '+%Y-%m-%d_%H-%M-%S'`
+# delete stale backups
+#
+# delete_old
+#
+# generate the filename
+INC="BU_FROOT_$TASK"
+FILENAME=$BU_FROOT-${!INC}-$STAMP.sql
+FILEPATH=$BU_DIR/$FILENAME
+message "backing up all the databases into $FILEPATH"
+# dump the data into the file
+#
+do_backup $FILEPATH
+#
+message "completed backup"
+# compress the backup
+message "compressing $FILEPATH"
+$GZIP $BU_DIR/$FILEPATH
+# return to where you started from...
+cd $OLD_DIR
+#
+# sent resulting email report
+#
+#send_email_report
+exit 0
