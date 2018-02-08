@@ -217,7 +217,7 @@ do_backup $FILEPATH $TASK
 message "completed backup"
 # compress the backup
 message "compressing $FILEPATH"
-$GZIP $BU_DIR/$FILEPATH
+$GZIP $FILEPATH
 # return to where you started from...
 cd $OLD_DIR
 #
