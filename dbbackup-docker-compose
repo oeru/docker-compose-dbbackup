@@ -25,7 +25,7 @@ BU_FROOT_YEARLY=yearly
 # this can be overridden at invocation
 BU_CONF=default-docker-compose.conf
 # # output for debugging...
-VERBOSE=1
+VERBOSE=0
 #
 # Stuff that should be universal for this install...
 # where we can find this app...
@@ -111,8 +111,7 @@ delete_old() {
   PRUNEABLES=`$PRUNEABLES_CMD $PATTERN`
   if  test "$?" -eq "0" ; then
     message "pruning older files based on $PATTERN"
-
-    BU_TO_KEEP=$BU_TO_KEEP_${!2}
+    BU_TO_KEEP=$2
     message "keeping last $BU_TO_KEEP backups"
     #
     # set counter
@@ -123,11 +122,13 @@ delete_old() {
       NUM=$(($NUM + 1))
       if test $NUM -gt $BU_TO_KEEP ; then
         message "deleting $PRUNEABLE"
-        #rm $PRUNEABLE 2>&1 > /dev/null
+        rm $PRUNEABLE 2>&1 > /dev/null
       else
         message "keeping $PRUNEABLE"
       fi
     done
+  else
+    message "No files with $PATTERN to delete"
   fi
 }
 #
@@ -180,7 +181,7 @@ done
 #
 #
 # create the blank email report
-#create_tmp_email
+create_tmp_email
 #
 if test -f $BU_CONF ; then
     verbose "Reading default in $BU_CONF"
@@ -208,7 +209,8 @@ FILENAME=$FILEPART-$STAMP.sql
 FILEPATH=$BU_DIR/$FILENAME
 #
 # delete stale backups
-delete_old $FILEPART $TASK
+TO_KEEP="BU_TO_KEEP_$TASK"
+delete_old $FILEPART ${!TO_KEEP}
 #
 message "backing up all the databases into $FILEPATH"
 # dump the data into the file
@@ -224,5 +226,5 @@ cd $OLD_DIR
 #
 # sent resulting email report
 #
-#send_email_report
+send_email_report
 exit 0

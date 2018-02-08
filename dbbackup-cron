@@ -1,0 +1,18 @@
+#
+# run system backups
+#
+# hourly - at 5 minutes past mon-sat
+05 * * * * root /etc/dbbackup/dbbackup-docker-compose --hourly 
+#
+# daily - at 7:30 pm, mon-sat
+30 19 * * * root /etc/dbbackup/dbbackup-docker-compose --daily
+#
+# weekly - at 7:30 pm, sun
+30 19 * * sun   root /etc/dbbackup/dbbackup-docker-compose --weekly
+#
+# monthly - at 8:30 pm, on the first of the last of the month
+30 20 1 * *   root /etc/dbbackup/dbbackup-docker-compose --monthly
+#
+# yearly - at 8:30 pm, on the first of January.
+30 20 1 1 *   root /etc/dbbackup/dbbackup-docker-compose --yearly
+
