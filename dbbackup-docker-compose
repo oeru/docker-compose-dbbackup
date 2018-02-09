@@ -79,7 +79,7 @@ create_tmp_email() {
 send_email_report() {
   if test -f $TMP_EMAIL ; then
     message "sending email report to $EMAIL"
-    $MAIL -s "$EMAIL_SUBJ" $EMAIL < $TMP_EMAIL
+    $MAIL -s "$EMAIL_SUBJ ($1)" $EMAIL < $TMP_EMAIL
     rm $TMP_EMAIL
     if test -f $TMP_EMAIL ; then
       message "failed to remove temporary email  $TMP_EMAIL"
@@ -135,13 +135,14 @@ delete_old() {
 #
 do_backup() {
    FILE=$1
-   VER=`$DC exec $DC_CONTAINER pg_config --version`
+   CONTAINER=$2
+   VER=`$DC exec $CONTAINER pg_config --version`
    verbose "Postgres version $VER - echoing to backup: $FILE"
    echo "--" > $FILE
    echo "-- PostgreSQL Version: $VER" >> $FILE
    echo "--" >> $FILE
    echo "" >> $FILE
-   CMD="$DC exec $DC_CONTAINER $DUMP_CMD"
+   CMD="$DC exec $CONTAINER $DUMP_CMD"
    verbose "doing database dump: $CMD"
    $CMD >> $FILE
 }
@@ -181,7 +182,7 @@ done
 #
 #
 # create the blank email report
-create_tmp_email
+create_tmp_email 
 #
 if test -f $MAIN_DIR/$BU_CONF ; then
     verbose "Reading default in $MAIN_DIR/$BU_CONF"
@@ -215,7 +216,7 @@ delete_old $FILEPART ${!TO_KEEP}
 message "backing up all the databases into $FILEPATH"
 # dump the data into the file
 #
-do_backup $FILEPATH $TASK
+do_backup $FILEPATH $DC_CONTAINER
 #
 message "completed backup"
 # compress the backup
@@ -226,5 +227,5 @@ cd $OLD_DIR
 #
 # sent resulting email report
 #
-send_email_report
+send_email_report $TASK
 exit 0
