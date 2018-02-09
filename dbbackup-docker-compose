@@ -183,11 +183,11 @@ done
 # create the blank email report
 create_tmp_email
 #
-if test -f $BU_CONF ; then
-    verbose "Reading default in $BU_CONF"
-    source $BU_CONF
+if test -f $MAIN_DIR/$BU_CONF ; then
+    verbose "Reading default in $MAIN_DIR/$BU_CONF"
+    source $MAIN_DIR/$BU_CONF
 else
-    error "Couldn't find or read $BU_CONF"
+    message "ERROR: Couldn't find or read $MAIN_DIR/$BU_CONF"
     exit 1
 fi
 #
