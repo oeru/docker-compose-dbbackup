@@ -146,7 +146,8 @@ do_backup() {
    verbose "doing database dump: $CMD"
    $CMD >> $FILE
 }
-
+#
+TASK=
 #
 # cycle through the command line options
 while test $# -ne 0 ; do
@@ -179,10 +180,18 @@ while test $# -ne 0 ; do
   esac
   shift
 done
+# 
+# we must have *some* task specified
+if [[ $TASK == '' ]] ; then
+    message "No TASK specified! Pick --hourly, --daily, --weekly, --monthly, --yearly..."
+    exit 1
+fi
 #
 #
 # create the blank email report
-create_tmp_email 
+if ! [[ $TASK == 'HOURLY' ]] ; then
+    create_tmp_email
+fi
 #
 if test -f $MAIN_DIR/$BU_CONF ; then
     verbose "Reading default in $MAIN_DIR/$BU_CONF"
@@ -227,5 +236,7 @@ cd $OLD_DIR
 #
 # sent resulting email report
 #
-send_email_report $TASK
+if ! [[ $TASK == 'HOURLY' ]] ; then
+    send_email_report $TASK
+fi
 exit 0
